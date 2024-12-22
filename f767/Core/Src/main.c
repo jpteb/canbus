@@ -18,15 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "stm32f7xx_hal.h"
-#include "stm32f7xx_hal_can.h"
-#include "stm32f7xx_hal_uart.h"
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 /* USER CODE END Includes */
 
@@ -140,7 +138,6 @@ int main(void) {
             HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 
             tx_data[0] = ub_key_number++;
-            tx_data[1] = 0xAD;
 
             // if (HAL_CAN_AddMessageToTxFifoQ(&hfdcan1, &tx_header, tx_data) !=
             if (HAL_CAN_AddTxMessage(&hcan1, &tx_header, tx_data,
@@ -217,8 +214,8 @@ static void MX_CAN1_Init(void) {
 
     /* USER CODE END CAN1_Init 1 */
     hcan1.Instance = CAN1;
-    hcan1.Init.Prescaler = 16;
-    hcan1.Init.Mode = CAN_MODE_NORMAL;
+    hcan1.Init.Prescaler = 13;
+    hcan1.Init.Mode = CAN_MODE_LOOPBACK;
     hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
     hcan1.Init.TimeSeg1 = CAN_BS1_1TQ;
     hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
@@ -372,6 +369,8 @@ static void CAN_Config(void) {
  * @retval None
  */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+    HAL_UART_Transmit(&huart3, (uint8_t *)"CAN Rx Callback triggered!\r\n", 28,
+                      HAL_MAX_DELAY);
     /* Get RX message */
     if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data) !=
         HAL_OK) {
