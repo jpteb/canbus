@@ -67,7 +67,7 @@
               clang-tools
               devPythonEnv
               doxygen
-              gcc-arm-embedded
+              gcc-arm-embedded-13
               glibc_multi # for the 32-bit headers of gcc
               meson
               minicom
