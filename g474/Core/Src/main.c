@@ -18,6 +18,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32g4xx_hal_def.h"
+#include "stm32g4xx_hal_fdcan.h"
+#include "stm32g4xx_hal_uart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -53,7 +56,7 @@ uint8_t ub_key_number = 0x0;
 FDCAN_RxHeaderTypeDef rx_header;
 uint8_t rx_data[8];
 FDCAN_TxHeaderTypeDef tx_header;
-uint8_t tx_data[8];
+uint8_t tx_data[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
 
 /* USER CODE END PV */
 
@@ -136,9 +139,7 @@ int main(void) {
             HAL_UART_Transmit(&huart2, button_msg, sizeof(button_msg),
                               HAL_MAX_DELAY);
             HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-
-            tx_data[0] = ub_key_number++;
-            tx_data[1] = 0xAD;
+            tx_data[0] += 1;
 
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &tx_header, tx_data) !=
                 HAL_OK) {
@@ -151,17 +152,13 @@ int main(void) {
                 }
                 Error_Handler();
             }
-            HAL_Delay(10);
+            if (tx_data[0] == 0x1f) {
+                tx_data[0] = 0;
+            }
+            HAL_Delay(1);
         }
-
-        // if (HAL_GetTick() - last_led_tick > 500 && button_state) {
-        //     last_led_tick = HAL_GetTick();
-        //     // HAL_UART_Transmit(&huart2, led_msg, sizeof(led_msg),
-        //     HAL_MAX_DELAY); HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-        // }
-        HAL_Delay(1);
+        /* USER CODE END 3 */
     }
-    /* USER CODE END 3 */
 }
 
 /**
@@ -176,8 +173,8 @@ void SystemClock_Config(void) {
      */
     HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-    /** Initializes the RCC Oscillators according to the specified parameters
-     * in the RCC_OscInitTypeDef structure.
+    /** Initializes the RCC Oscillators according to the specified
+     * parameters in the RCC_OscInitTypeDef structure.
      */
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
     RCC_OscInitStruct.HSIState = RCC_HSI_ON;
@@ -218,14 +215,14 @@ static void MX_FDCAN1_Init(void) {
     hfdcan1.Instance = FDCAN1;
     hfdcan1.Init.ClockDivider = FDCAN_CLOCK_DIV1;
     hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
-    hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
+    hfdcan1.Init.Mode = FDCAN_MODE_INTERNAL_LOOPBACK;
     hfdcan1.Init.AutoRetransmission = DISABLE;
     hfdcan1.Init.TransmitPause = DISABLE;
     hfdcan1.Init.ProtocolException = DISABLE;
-    hfdcan1.Init.NominalPrescaler = 16;
+    hfdcan1.Init.NominalPrescaler = 4;
     hfdcan1.Init.NominalSyncJumpWidth = 1;
-    hfdcan1.Init.NominalTimeSeg1 = 1;
-    hfdcan1.Init.NominalTimeSeg2 = 1;
+    hfdcan1.Init.NominalTimeSeg1 = 7;
+    hfdcan1.Init.NominalTimeSeg2 = 2;
     hfdcan1.Init.DataPrescaler = 1;
     hfdcan1.Init.DataSyncJumpWidth = 1;
     hfdcan1.Init.DataTimeSeg1 = 1;
@@ -331,7 +328,7 @@ static void FDCAN_Config(void) {
     /* Configure Rx filter */
     sFilterConfig.IdType = FDCAN_STANDARD_ID;
     sFilterConfig.FilterIndex = 0;
-    sFilterConfig.FilterType = FDCAN_FILTER_MASK;
+    sFilterConfig.FilterType = FDCAN_FILTER_RANGE;
     sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
     sFilterConfig.FilterID1 = 0x321;
     sFilterConfig.FilterID2 = 0x7FF;
@@ -342,11 +339,11 @@ static void FDCAN_Config(void) {
     /* Configure global filter:
        Filter all remote frames with STD and EXT ID
        Reject non matching frames with STD ID and EXT ID */
-    if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT,
-                                     FDCAN_FILTER_REMOTE,
-                                     FDCAN_FILTER_REMOTE) != HAL_OK) {
-        Error_Handler();
-    }
+    // if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT,
+    //                                  FDCAN_FILTER_REMOTE,
+    //                                  FDCAN_FILTER_REMOTE) != HAL_OK) {
+    //     Error_Handler();
+    // }
 
     /* Start the FDCAN module */
     if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK) {
@@ -363,7 +360,7 @@ static void FDCAN_Config(void) {
     tx_header.IdType = FDCAN_STANDARD_ID;
     tx_header.TxFrameType = FDCAN_DATA_FRAME;
     tx_header.DataLength = FDCAN_DLC_BYTES_2;
-    tx_header.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+    tx_header.ErrorStateIndicator = FDCAN_ESI_PASSIVE;
     tx_header.BitRateSwitch = FDCAN_BRS_OFF;
     tx_header.FDFormat = FDCAN_CLASSIC_CAN;
     tx_header.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
@@ -381,12 +378,24 @@ static void FDCAN_Config(void) {
  */
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan,
                                uint32_t RxFifo0ITs) {
+    static uint8_t callback_hit_msg[] = "HAL_FDCAN_RxFifo0Callback called!\r\n";
+    HAL_UART_Transmit(&huart2, callback_hit_msg, sizeof(callback_hit_msg),
+                      HAL_MAX_DELAY);
     if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET) {
         /* Retrieve Rx messages from RX FIFO0 */
         if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rx_header,
                                    rx_data) != HAL_OK) {
             Error_Handler();
         }
+
+        char msg1[128];
+        snprintf(msg1, 128,
+                 "Successfully received data: Id: %lx, IdType: %ld, Length: "
+                 "%ld, data point: %x\r\n",
+                 rx_header.Identifier, rx_header.IdType, rx_header.DataLength,
+                 rx_data[0]);
+        uint32_t msg1_len = strnlen(msg1, 128);
+        HAL_UART_Transmit(&huart2, (uint8_t *)msg1, msg1_len, HAL_MAX_DELAY);
 
         /* Display LEDx */
         if ((rx_header.Identifier == 0x321) &&
@@ -410,7 +419,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan,
  */
 void Error_Handler(void) {
     /* USER CODE BEGIN Error_Handler_Debug */
-    /* User can add his own implementation to report the HAL error return state
+    /* User can add his own implementation to report the HAL error return
+     * state
      */
     __disable_irq();
     while (1) {
