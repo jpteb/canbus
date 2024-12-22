@@ -32,6 +32,16 @@
           system,
           ...
         }:
+        let
+                  devPythonEnv = pkgs.python312.withPackages(ps: [
+                ps.aioconsole
+                ps.cffi
+                ps.cmsis-pack-manager
+                ps.protobuf
+                ps.pyocd
+                ps.pyserial
+          ]);
+        in
         {
           _module.args.pkgs = import nixpkgs {
             inherit system;
@@ -55,16 +65,15 @@
             packages = with pkgs; [
               cmake
               clang-tools
+              devPythonEnv
               doxygen
               gcc-arm-embedded
               glibc_multi # for the 32-bit headers of gcc
               meson
+              minicom
               ninja
               protobuf
               pyocd
-              python312
-              python312Packages.protobuf
-              python312Packages.pyocd
               stlink
               stm32cubemx # Our own version and not from pkgs
             ];
