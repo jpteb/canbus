@@ -18,9 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "stm32g4xx_hal_def.h"
-#include "stm32g4xx_hal_fdcan.h"
-#include "stm32g4xx_hal_uart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -157,8 +154,8 @@ int main(void) {
             }
             HAL_Delay(1);
         }
-        /* USER CODE END 3 */
     }
+    /* USER CODE END 3 */
 }
 
 /**
@@ -215,7 +212,7 @@ static void MX_FDCAN1_Init(void) {
     hfdcan1.Instance = FDCAN1;
     hfdcan1.Init.ClockDivider = FDCAN_CLOCK_DIV1;
     hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
-    hfdcan1.Init.Mode = FDCAN_MODE_INTERNAL_LOOPBACK;
+    hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
     hfdcan1.Init.AutoRetransmission = DISABLE;
     hfdcan1.Init.TransmitPause = DISABLE;
     hfdcan1.Init.ProtocolException = DISABLE;
@@ -339,7 +336,8 @@ static void FDCAN_Config(void) {
     /* Configure global filter:
        Filter all remote frames with STD and EXT ID
        Reject non matching frames with STD ID and EXT ID */
-    // if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT,
+    // if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT,
+    // FDCAN_REJECT,
     //                                  FDCAN_FILTER_REMOTE,
     //                                  FDCAN_FILTER_REMOTE) != HAL_OK) {
     //     Error_Handler();
