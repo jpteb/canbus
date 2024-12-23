@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32f7xx_hal_uart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -49,8 +50,7 @@ CAN_HandleTypeDef hcan1;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint8_t ub_key_number = 0x0;
-CAN_HandleTypeDef can_handle;
+uint8_t ub_key_number = 0;
 CAN_RxHeaderTypeDef rx_header;
 uint8_t rx_data[8];
 CAN_TxHeaderTypeDef tx_header;
@@ -138,8 +138,11 @@ int main(void) {
             HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 
             tx_data[0] = ub_key_number++;
+            char msg[64];
+            snprintf(msg, 64, "ub_key_number: %d\r\n", ub_key_number);
+            uint32_t msg_len = strnlen(msg, 64);
+            HAL_UART_Transmit(&huart3, (uint8_t *)msg, msg_len, HAL_MAX_DELAY);
 
-            // if (HAL_CAN_AddMessageToTxFifoQ(&hfdcan1, &tx_header, tx_data) !=
             if (HAL_CAN_AddTxMessage(&hcan1, &tx_header, tx_data,
                                      &tx_mailbox) != HAL_OK) {
                 HAL_UART_Transmit(&huart3,
@@ -153,9 +156,6 @@ int main(void) {
             }
             HAL_Delay(10);
         }
-        // HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
-        // HAL_UART_Transmit(&huart3, msg, sizeof(msg), HAL_MAX_DELAY);
-        // HAL_Delay(500);
         HAL_Delay(1);
     }
     /* USER CODE END 3 */
@@ -214,10 +214,10 @@ static void MX_CAN1_Init(void) {
 
     /* USER CODE END CAN1_Init 1 */
     hcan1.Instance = CAN1;
-    hcan1.Init.Prescaler = 13;
+    hcan1.Init.Prescaler = 4;
     hcan1.Init.Mode = CAN_MODE_LOOPBACK;
     hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-    hcan1.Init.TimeSeg1 = CAN_BS1_1TQ;
+    hcan1.Init.TimeSeg1 = CAN_BS1_8TQ;
     hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
     hcan1.Init.TimeTriggeredMode = DISABLE;
     hcan1.Init.AutoBusOff = DISABLE;
@@ -276,12 +276,18 @@ static void MX_GPIO_Init(void) {
     /* USER CODE END MX_GPIO_Init_1 */
 
     /* GPIO Ports Clock Enable */
+    __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOD_CLK_ENABLE();
-    __HAL_RCC_GPIOA_CLK_ENABLE();
 
     /*Configure GPIO pin Output Level */
     HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
+
+    /*Configure GPIO pin : PC13 */
+    GPIO_InitStruct.Pin = GPIO_PIN_13;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
     /*Configure GPIO pin : USR_LED_Pin */
     GPIO_InitStruct.Pin = USR_LED_Pin;
@@ -296,58 +302,43 @@ static void MX_GPIO_Init(void) {
 
 /* USER CODE BEGIN 4 */
 static void CAN_Config(void) {
+    HAL_Delay(1000);
     CAN_FilterTypeDef sFilterConfig;
-
-    /*##-1- Configure the CAN peripheral
-     * #######################################*/
-    can_handle.Instance = CAN1;
-
-    can_handle.Init.TimeTriggeredMode = DISABLE;
-    can_handle.Init.AutoBusOff = DISABLE;
-    can_handle.Init.AutoWakeUp = DISABLE;
-    can_handle.Init.AutoRetransmission = ENABLE;
-    can_handle.Init.ReceiveFifoLocked = DISABLE;
-    can_handle.Init.TransmitFifoPriority = DISABLE;
-    can_handle.Init.Mode = CAN_MODE_NORMAL;
-    can_handle.Init.SyncJumpWidth = CAN_SJW_1TQ;
-    can_handle.Init.TimeSeg1 = CAN_BS1_6TQ;
-    can_handle.Init.TimeSeg2 = CAN_BS2_2TQ;
-    can_handle.Init.Prescaler = 6;
-
-    if (HAL_CAN_Init(&can_handle) != HAL_OK) {
-        /* Initialization Error */
-        Error_Handler();
-    }
 
     /*##-2- Configure the CAN Filter
      * ###########################################*/
     sFilterConfig.FilterBank = 0;
-    sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
-    sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
     sFilterConfig.FilterIdHigh = 0x0000;
     sFilterConfig.FilterIdLow = 0x0000;
     sFilterConfig.FilterMaskIdHigh = 0x0000;
     sFilterConfig.FilterMaskIdLow = 0x0000;
     sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
     sFilterConfig.FilterActivation = ENABLE;
-    sFilterConfig.SlaveStartFilterBank = 14;
+    sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+    sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
 
-    if (HAL_CAN_ConfigFilter(&can_handle, &sFilterConfig) != HAL_OK) {
+    if (HAL_CAN_ConfigFilter(&hcan1, &sFilterConfig) != HAL_OK) {
         /* Filter configuration Error */
         Error_Handler();
     }
 
+    HAL_UART_Transmit(&huart3, (uint8_t *)"Starting hcan1!\r\n", 17,
+                      HAL_MAX_DELAY);
+
     /*##-3- Start the CAN peripheral
      * ###########################################*/
-    if (HAL_CAN_Start(&can_handle) != HAL_OK) {
+    if (HAL_CAN_Start(&hcan1) != HAL_OK) {
         /* Start Error */
         Error_Handler();
     }
 
+    HAL_UART_Transmit(&huart3, (uint8_t *)"Started hcan1!\r\n", 16,
+                      HAL_MAX_DELAY);
+
     /*##-4- Activate CAN RX notification
      * #######################################*/
-    if (HAL_CAN_ActivateNotification(&can_handle,
-                                     CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK) {
+    if (HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) !=
+        HAL_OK) {
         /* Notification Error */
         Error_Handler();
     }
@@ -383,10 +374,9 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
         (rx_header.DLC == 2)) {
         // LED_Display(RxData[0]);
         char msg[64];
-        snprintf(msg, 64, "Received data on can bus: %x\r\n", rx_data[0]);
+        snprintf(msg, 64, "Received data on can bus: 0x%02x\r\n", rx_data[0]);
         uint32_t msg_len = strnlen(msg, 64);
         HAL_UART_Transmit(&huart3, (uint8_t *)msg, msg_len, HAL_MAX_DELAY);
-        ub_key_number = rx_data[0];
     }
 }
 
